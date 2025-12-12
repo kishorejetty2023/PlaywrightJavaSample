@@ -1,0 +1,110 @@
+plugins {
+    id 'java'
+    id 'io.freefair.lombok' version "${lombokPluginVersion}"
+    id "io.qameta.allure" version "${allureVersion}"
+    id 'org.owasp.dependencycheck' version "${owaspDependencycheckPluginVersion}"
+    id 'com.github.ben-manes.versions' version "${dependencyUpdatesPluginVersion}"
+    id 'be.vbgn.ci-detect' version "${ciDetectPluginVersion}"
+}
+
+defaultTasks 'clean', 'test'
+
+group 'org.playwright.automation'
+version '1.0-SNAPSHOT'
+ext{
+    if(!project.hasProperty('suiteFile')){
+        suiteFile = 'src/test/resources/testRunners/testng.xml'
+    }
+}
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation "com.microsoft.playwright:playwright:${playwrightVersion}"
+    implementation ("org.jetbrains:annotations:${annotationsVersion}"){
+        exclude group: 'org.opentest4j', module: 'opentest4j'
+    }
+    implementation "org.testng:testng:${testNGVersion}"
+    implementation ("org.junit.jupiter:junit-jupiter:${junitVersion}"){
+        exclude group: 'org.opentest4j', module: 'opentest4j'
+    }
+    implementation "org.apache.commons:commons-lang3:${commonslang3Version}"
+    implementation "org.apache.poi:poi:${poiVersion}"
+    implementation "org.apache.poi:poi-ooxml:5.4.0"
+    implementation "org.apache.poi:poi-ooxml-lite:${poOoxlSchemasVersion}"
+    testRuntimeOnly "org.apache.logging.log4j:log4j-api:${log4jVersion}"
+    testRuntimeOnly "org.apache.logging.log4j:log4j-core:${log4jVersion}"
+    testRuntimeOnly "org.apache.logging.log4j:log4j-slf4j-impl:${log4jVersion}"
+    implementation "org.projectlombok:lombok:${lombokVesion}"
+    annotationProcessor "org.projectlombok:lombok:${lombokVesion}"
+
+    //these all are extra you can take it off if not required
+    implementation "joda-time:joda-time:${jodaTimeVersion}"
+
+    implementation "org.apache.xmlbeans:xmlbeans:${xmlBeansVersion}"
+    implementation "com.fasterxml.jackson.core:jackson-core:${jacksonVersion}"
+    implementation "com.fasterxml.jackson.core:jackson-databind:${jacksonVersion}"
+    implementation "com.aventstack:extentreports:${extentReportsVersion}"
+    implementation "org.json:json:${jsonVersion}"
+
+
+    testImplementation "org.assertj:assertj-joda-time:${assertjJodatimeVersion}"
+    testImplementation "org.assertj:assertj-core:${assertjcoreVersion}"
+
+
+}
+
+
+test {//this is the gradle task to be executed
+    systemProperties 'release' : System.getProperty('release')
+    systemProperties 'headless' : System.getProperty('headless',"false")
+    systemProperties 'browser' : System.getProperty('browser','chrome')
+    systemProperties 'env' : System.getProperty('env','dev')
+    environment "PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD", "1"
+    environment "PLAYWRIGHT_NOTE_PATH", "C:\\Program Files\\nodejs\\node.exe"
+    useTestNG() { //Tells Gradle to use TestNG
+        def groupName = System.getProperty('groups')
+        if(groupName && !groupName.isEmpty()){
+            includeGroups groupName
+        }
+        suites suiteFile
+    }
+    outputs.upToDateWhen {false}
+    //To display the following test events
+    testLogging {
+        events=["STARTED","PASSED", "SKIPPED", "FAILED"]
+        showStandardStreams =  true
+        exceptionFormat = 'full'
+    }
+}
+tasks.register('runPlaywrightTrace', JavaExec) {
+    group = "verification"
+    description = "show the test trace"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.microsoft.playwright.CLI'
+    args 'show-trace'
+}
+tasks.register('runPlaywrightCodegen', JavaExec) {
+    group = "Execution"
+    description = "run playwright codegen"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.microsoft.playwright.CLI'
+    args 'codegen', '--channel=chrome'
+}
+tasks.register('runPlaywrightUW', JavaExec) {
+    group = "verification"
+    description = "run Playwright UW"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.microsoft.playwright.CLI'
+    args = ['codegen','https://github.com/', '--browser=chromium --channel=msedge']
+}
+
+tasks.register('runEncrypter', JavaExec) {
+    group = "utility"
+    description = "Run AES encrypter utility"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.org.automation.appname.utils.AESUtil'
+    standardInput = System.in
+}
+

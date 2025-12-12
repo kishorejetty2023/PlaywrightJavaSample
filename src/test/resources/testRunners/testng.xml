@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE suite SYSTEM "http://testng.org/testng-1.0.dtd">
+<suite name="App Login test chrome" thread-count="3" parallel="tests" verbose="4">
+
+    <!--    <listeners>-->
+    <!--        <listener class-name="com.org.automation.appname.listeners.ExtentReportListener"/>-->
+    <!--        &lt;!&ndash;        <listener class-name="com.testUtilities.listeners.AllureReportListener"/> &ndash;&gt;-->
+    <!--    </listeners>-->
+
+    <test name="Admin Authentication Tests">
+        <classes>
+            <class name="com.org.automation.appname.tests.LoginPageTest"/>
+        </classes>
+    </test>
+
+</suite>
