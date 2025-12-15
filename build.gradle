@@ -55,6 +55,48 @@ dependencies {
 
 }
 
+// Helper to find Node.js executable on the system. Returns a File or null.
+static def findNodeExecutable() {
+    def candidates = []
+    // environment overrides (keep backward compatibility with old typo)
+    def envNodePath = System.getenv('PLAYWRIGHT_NODE_PATH') ?: System.getenv('PLAYWRIGHT_NOTE_PATH')
+    if (envNodePath) candidates << new File(envNodePath)
+
+    // allow override via system property
+    def propNodePath = System.getProperty('playwright.nodePath')
+    if (propNodePath) candidates << new File(propNodePath)
+
+    // search PATH for node/node.exe
+    def pathEnv = System.getenv('PATH') ?: ''
+    pathEnv.split(File.pathSeparator).each { p ->
+        if (p) {
+            candidates << new File(p, 'node.exe')
+            candidates << new File(p, 'node')
+        }
+    }
+
+    candidates = candidates.findAll { it != null }.collect { it.absoluteFile }.toSet().toList()
+    return candidates.find { it.exists() && it.isFile() }
+}
+
+// Task that verifies Node.js is available. Attach this to build/test so it runs during build.
+tasks.register('verifyNode') {
+    group = 'verification'
+    description = 'Verify Node.js is installed and available for Playwright'
+    doLast {
+        def nodeFile = findNodeExecutable()
+        if (!nodeFile) {
+            throw new GradleException("Node.js executable not found. Please install Node.js or set environment variable PLAYWRIGHT_NODE_PATH to point to node.exe, or ensure 'node' is on your PATH.")
+        }
+        println "Verified Node.js at: ${nodeFile.absolutePath}"
+        // store resolved path for other tasks to consume
+        project.ext.PLAYWRIGHT_NODE_PATH = nodeFile.absolutePath
+    }
+}
+
+// Make sure build and test run the verification before other actions
+tasks.named('build') { dependsOn tasks.named('verifyNode') }
+tasks.named('test')  { dependsOn tasks.named('verifyNode') }
 
 test {//this is the gradle task to be executed
     systemProperties 'release' : System.getProperty('release')
@@ -62,7 +104,27 @@ test {//this is the gradle task to be executed
     systemProperties 'browser' : System.getProperty('browser','chrome')
     systemProperties 'env' : System.getProperty('env','dev')
     environment "PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD", "1"
-    environment "PLAYWRIGHT_NOTE_PATH", "C:\\Program Files\\nodejs\\node.exe"
+    environment "PLAYWRIGHT_NODE_PATH", "C:\\Program Files\\nodejs\\node.exe"
+
+    // Ensure Node.js is available before running tests. This will fail the build early with a clear message.
+    doFirst {
+        // Prefer resolved value from verifyNode (project.ext) if present, otherwise try to locate again.
+        def nodeFile
+        if (project.hasProperty('PLAYWRIGHT_NODE_PATH')) {
+            nodeFile = new File(project.PLAYWRIGHT_NODE_PATH)
+        } else {
+            nodeFile = findNodeExecutable()
+        }
+
+        if(!nodeFile || !nodeFile.exists() || !nodeFile.isFile()) {
+            throw new GradleException("Node.js executable not found. Please install Node.js or set environment variable PLAYWRIGHT_NODE_PATH to point to node.exe, or ensure 'node' is on your PATH.")
+        } else {
+            println "Using Node.js at: ${nodeFile}"
+            // ensure Playwright sees the node path during the test execution
+            environment.put('PLAYWRIGHT_NODE_PATH', nodeFile.absolutePath)
+        }
+    }
+
     useTestNG() { //Tells Gradle to use TestNG
         def groupName = System.getProperty('groups')
         if(groupName && !groupName.isEmpty()){
@@ -107,4 +169,3 @@ tasks.register('runEncrypter', JavaExec) {
     mainClass = 'com.org.automation.appname.utils.AESUtil'
     standardInput = System.in
 }
-
